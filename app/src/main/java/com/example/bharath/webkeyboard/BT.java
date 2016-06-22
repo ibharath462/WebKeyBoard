@@ -43,14 +43,18 @@ public class BT extends InputMethodService implements KeyboardView.OnKeyboardAct
 
 
     static InputConnection ic=null;
-    int swapFlag=0,charIndex=0;
+    int swapFlag=0,charIndex=0,suggestIndex=0;
+    boolean suggetsState=false;
     GridLayout gl;
+    Thread suggestionThread;
+    ViewGroup.LayoutParams bParams;
+    String []StringArray=new String[9];
     HashMap<String,String> resMap=new HashMap<String,String>();
-    ArrayAdapter adapter;
     CharSequence ch;
     CountDownTimer cT;
     ViewGroup v;
     LinearLayout ll1,predictiveView;
+    Button prediction;
     Button but;
     Drawable dd;
     View h;
@@ -58,6 +62,7 @@ public class BT extends InputMethodService implements KeyboardView.OnKeyboardAct
     Handler mHandler;
     View myView;
     int rIndex=2,cIndex=0;
+    int trIndex=2,tcIndex=0;
     WindowManager.LayoutParams p;
 
 
@@ -83,6 +88,7 @@ public class BT extends InputMethodService implements KeyboardView.OnKeyboardAct
         Intent i=new Intent(this,Bluetooth.class);
         i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
         startService(i);
+        suggestionThread=new Thread();
         disText=new LST(BT.this);
         btrec=new BtReceiver();
         mHandler=new Handler();
@@ -98,6 +104,9 @@ public class BT extends InputMethodService implements KeyboardView.OnKeyboardAct
 
             }
         }.start();
+
+        prediction=new Button(BT.this);
+        bParams=new ViewGroup.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
 
         IntentFilter iff=new IntentFilter();
         iff.addAction(Bluetooth.BLUETOOTH_SERVICE);
@@ -297,6 +306,7 @@ public class BT extends InputMethodService implements KeyboardView.OnKeyboardAct
     }
 
     public void BAS(){
+
         AT bat=new AT();
         bat.execute(ch.toString(),"","");
     }
@@ -371,7 +381,6 @@ public class BT extends InputMethodService implements KeyboardView.OnKeyboardAct
                 final JSONObject search = suggestions.getJSONObject(0);
                 final JSONArray result = search.getJSONArray("searchSuggestions");
                 Log.d("Status:","Length:"+result.length());
-                String []StringArray=new String[result.length()];
 
                 for(int i=0;i<result.length();i++){
 
@@ -379,14 +388,58 @@ public class BT extends InputMethodService implements KeyboardView.OnKeyboardAct
                     String x=t.getString("query");
                     String y=t.getString("url");
                     StringArray[i]=x;
-                    resMap.put(x,y);
+                    resMap.put(x, y);
                     Log.d("StatusAPI:",StringArray[i]);
-                    adapter = new ArrayAdapter<String>(BT.this,R.layout.activity_listview,StringArray);
                 }
+                StringArray[8]="Cancel";
+                prediction.setText(""+StringArray[suggestIndex]);
+                suggestIndex=(suggestIndex+1)%8;
+                predictiveView.removeAllViews();
+                predictiveView.addView(prediction, bParams);
+                changeSuggestion();
             } catch (JSONException e) {
                 e.printStackTrace();
             }
         }
+
+    }
+
+
+    public void changeSuggestion() {
+
+        Runnable rr=new Runnable () {
+            @Override
+            public void run() {
+                // TODO Auto-generated method stub
+                while (suggetsState) {
+                    try {
+                        Thread.sleep(4000);
+                        mHandler.post(new Runnable() {
+
+                            @Override
+                            public void run() {
+                                // TODO Auto-generated method stub
+
+                                predictiveView.removeView(prediction);
+                                suggestIndex=(suggestIndex+1)%9;
+                                prediction.setText(""+StringArray[suggestIndex]);
+                                predictiveView.addView(prediction, bParams);
+
+
+
+                            }
+                        });
+                    } catch (Exception e) {
+                        // TODO: handle exception
+                    }
+                }
+            }
+        };
+
+        suggestionThread=new Thread(rr);
+        suggestionThread.start();
+        suggetsState=true;
+
 
     }
 
@@ -396,6 +449,8 @@ public class BT extends InputMethodService implements KeyboardView.OnKeyboardAct
 
         @Override
         public void onReceive(Context context, Intent intent) {
+
+
 
             String s=intent.getStringExtra("bt");
             defa();
